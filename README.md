@@ -2,7 +2,7 @@
 
 Pyxis
 A lightweight Abyssea chest opener for Final Fantasy XI (Ashita v4).
-![Pyxis HUD](New folder (6)/pyxis-preview.png)
+![Pyxis HUD](New%20folder%20(6)/pyxis-preview.png)
 Select Blue, Gold, or Red chests by clicking their icons. The HUD shows nearby chest counts and your available Forbidden Keys. Press one macro to open enabled chests in range, one at a time.
 Install
 1. Put the pyxis folder (including its images folder) in Ashita/addons/.
