@@ -1,7 +1,7 @@
 addon.name = 'pyxis'
-addon.author = 'Pyxis'
-addon.version = '0.5.2'
-addon.desc = 'Macro-triggered sequential Abyssea chest key trades for Ashita v4.'
+addon.author = 'Integrity'
+addon.version = '0.6.0'
+addon.desc = 'Manual one-command, one-chest Abyssea Forbidden Key trades for Ashita v4.'
 
 require 'common'
 local imgui = require 'imgui'
@@ -40,9 +40,6 @@ local capture_count = 0
 -- Track trade attempts by both entity index and server ID so an opened chest
 -- that remains in the entity list is not selected on the next macro press.
 local attempted = {}
-local batch = { active = false, next_at = 0, sent = 0 }
-local BATCH_DELAY = 2 -- seconds between trades, using wall-clock time
-local BATCH_MAX = 20 -- guard against runaway trades
 local ATTEMPT_TTL = 120 -- seconds; /py reset clears immediately
 local function chest_key(c)
     return tostring(c.index) .. ':' .. tostring(c.server_id)
@@ -214,20 +211,6 @@ local function trade_one(quiet)
         return false, 'api'
     end
 end
-local function stop_batch(reason)
-    if not batch.active then return end
-    batch.active = false
-    -- Normal batch completion is silent; errors are emitted by trade_one.
-end
-local function start_batch()
-    if batch.active then return end
-    scan()
-    if ready_count() == 0 then return end
-    batch.active = true
-    batch.sent = 0
-    batch.next_at = 0
-    -- No batch-start message.
-end
 ashita.events.register('command', 'pyxis_command', function(e)
     local args = e.command:args()
     if #args == 0 or not args[1]:any('/py', '/pyxis') then return end
@@ -255,7 +238,6 @@ ashita.events.register('command', 'pyxis_command', function(e)
                 tostring(chest.model), chest.color))
         end
     elseif cmd == 'reset' then
-        stop_batch('reset requested')
         attempted = {}
         say('Attempt history cleared. Previously attempted chests may be retried.')
     elseif cmd == 'learn' then
@@ -263,12 +245,12 @@ ashita.events.register('command', 'pyxis_command', function(e)
         capture_count = 0
         say('Capture ON for 30 seconds. Manually trade ONE Forbidden Key to ONE chest now.')
         say('Only outgoing trade packets 0x036 will be displayed; no packets are injected.')
-    elseif cmd == 'stop' then
-        if batch.active then stop_batch('cancelled by user') end
     elseif cmd == 'open' then
-        start_batch()
+        -- One explicit user command sends at most one trade attempt.
+        -- No frame callback, timer, or batch loop can send another trade.
+        trade_one(true)
     else
-        say('Commands: /py | /py blue|red|gold [on|off] | /py status | /py debug | /py hud | /py learn | /py reset | /py stop')
+        say('Commands: /py | /py blue|red|gold [on|off] | /py status | /py debug | /py hud | /py learn | /py reset')
     end
 end)
 -- Observe a real, successful Forbidden Key trade before implementing packet sending.
@@ -292,21 +274,6 @@ ashita.events.register('packet_out', 'pyxis_trade_capture', function(e)
     if not ok then say('Capture error: ' .. tostring(err)) end
 end)
 ashita.events.register('d3d_present', 'pyxis_present', function()
-    if batch.active and os.time() >= batch.next_at then
-        if batch.sent >= BATCH_MAX then
-            stop_batch('safety limit reached')
-        else
-            local ok, reason = trade_one(true)
-            if ok then
-                batch.sent = batch.sent + 1
-                batch.next_at = os.time() + BATCH_DELAY
-            elseif reason == 'none' then
-                stop_batch('no more untried enabled chests within 5.9y')
-            else
-                stop_batch('trade could not continue (' .. tostring(reason) .. ')')
-            end
-        end
-    end
     if os.clock() - state.last >= 0.25 then
         state.last = os.clock()
         scan()
