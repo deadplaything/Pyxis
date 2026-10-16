@@ -1,6 +1,6 @@
 addon.name = 'pyxis'
 addon.author = 'Integrity'
-addon.version = '0.6.0'
+addon.version = '0.6.1'
 addon.desc = 'Manual one-command, one-chest Abyssea Forbidden Key trades for Ashita v4.'
 
 require 'common'
@@ -223,8 +223,11 @@ ashita.events.register('command', 'pyxis_command', function(e)
         else settings[cmd] = not settings[cmd] end
         -- HUD and command toggles are silent.
     elseif cmd == 'hud' then
-        settings.show = not settings.show
-        -- Silent HUD toggle.
+        local mode = (args[3] or ''):lower()
+        if mode == 'on' or mode == 'show' then settings.show = true
+        elseif mode == 'off' or mode == 'hide' then settings.show = false
+        else settings.show = not settings.show end
+        -- Silent HUD visibility control.
     elseif cmd == 'huddebug' then
         state.hud_debug_requested = true
         say('HUD coordinate diagnostic queued. Keep HUD visible for one frame.')
@@ -313,6 +316,13 @@ ashita.events.register('d3d_present', 'pyxis_present', function()
                           ImGuiWindowFlags_NoCollapse)
     imgui.SetNextWindowBgAlpha(0.97)
     if imgui.Begin('PYXIS  |  ABYSSEA##pyxis_hud', nil, flags) then
+        -- Close the overlay without unloading the addon. /py hud shows it again.
+        imgui.Text('PYXIS')
+        imgui.SameLine()
+        if imgui.Button('X##pyxis_close', { 24, 22 }) then
+            settings.show = false
+        end
+        imgui.Separator()
         -- Equal-width columns keep the chest artwork and buttons aligned.
         local entries = { 'blue', 'gold', 'red' }
         for i, color in ipairs(entries) do
